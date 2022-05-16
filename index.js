@@ -3,6 +3,7 @@ const app = express();
 require('dotenv').config();
 const port = process.env.PORT || 5000;
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.qbyer.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
@@ -14,6 +15,7 @@ async function run() {
         await client.connect();
         const serviceCollection = client.db('doctors-portal').collection('services');
         const bookingCollection = client.db('doctors-portal').collection('booking');
+        const userCollection = client.db('doctors-portal').collection('users');
 
         app.get('/service', async(req, res) => {
             const query = {};
@@ -21,6 +23,20 @@ async function run() {
             const services = await cursor.toArray();
             res.send(services);
         });
+
+        app.put('/user/:email', async(req, res) => {
+            const email = req.params.email;
+            const user = req.body;
+            const filter = { email: email };
+            const option = { upsert: true };
+            const updateDoc = {
+                $set: user,
+            };
+            const result = await userCollection.updateOne(filter, updateDoc, option);
+            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '24h' })
+            res.send({ result, token });
+        })
+
 
         app.get('/available', async(req, res) => {
             const date = req.query.date;
@@ -42,7 +58,12 @@ async function run() {
             res.send(services);
         })
 
-
+        app.get('/booking', async(req, res) => {
+            const patient = req.query.patient;
+            const query = { patient: patient };
+            const bookings = await bookingCollection.find(query).toArray();
+            res.send(bookings);
+        })
 
         app.post('/booking', async(req, res) => {
             const booking = req.body;
